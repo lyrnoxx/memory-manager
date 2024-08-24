@@ -12,7 +12,7 @@ extern int virutal_memory_size;
 extern int address_size;
 */
 
-static int page_size = 4;
+static int page_size = 1;
 static int physical_memory_size = 32;
 static int virutal_memory_size = 32;
 static int address_size = 32;
@@ -46,7 +46,9 @@ class Memory_Manager
 	string dec_to_hex(int page_number);
 	void increment_physical_page_number();
 	string increment_virtual_page_address(string address);
-	string padding(string bin_physical_address, string bin_logical_address);
+	string padding(string hex_address);
+	string get_next_virtual_address(string virtual_address);
+	string get_physical_address();
 	vector<vector<string>> assign_memory(string virtual_page_address, int size);
 };
 
@@ -62,10 +64,11 @@ void Memory_Manager::update_pages_allocated(int pages)
 
 void Memory_Manager::print_allocator_status()
 {
-	cout<<"Total Memory = "<<total_memory<<" bytes"<<endl;
-	cout<<"Total Pages = "<<total_pages<<endl;
+	cout<<"Total Memory Remaining = "<<total_memory - memory_allocated<<" bytes"<<endl;
+	cout<<"Total Pages Remaining = "<<total_pages - pages_allocated<<"pages"<<endl;
 	cout<<"Memory Allocated = "<<memory_allocated<<endl;
 	cout<<"Pages Allocated = "<<pages_allocated<<endl;
+	cout<<endl;
 }
 
 int Memory_Manager::hex_to_dec(string &logical_address)
@@ -143,31 +146,31 @@ string Memory_Manager::dec_to_hex(int address)
 		rem = current_address%16;
 		if(rem==10)
 		{
-			hex_addr += "A";
+			hex_addr = "A" + hex_addr;
 		}
 		else if(rem==11)
 		{
-			hex_addr += "B";
+			hex_addr = "B" + hex_addr;
 		}
 		else if(rem==12)
 		{
-			hex_addr += "C";
+			hex_addr = "C" + hex_addr;
 		}
 		else if(rem==13)
 		{
-			hex_addr += "D";
+			hex_addr = "D" + hex_addr;
 		}
 		else if(rem==14)
 		{
-			hex_addr += "E";
+			hex_addr = "E" + hex_addr;
 		}
 		else if(rem==15)
 		{
-			hex_addr += "F";
+			hex_addr = "F" + hex_addr;
 		}
 		else
 		{
-			hex_addr += to_string(rem); //Wrong concatenation.
+			hex_addr = to_string(rem) + hex_addr; //Wrong concatenation.
 		}
 		current_address /=16;
 	}
@@ -229,9 +232,17 @@ string Memory_Manager::increment_virtual_page_address(string address)
 	//get page_number and offset from the page_num_offset vector.
 }
 
-string Memory_Manager::padding(string bin_physical_address, string bin_logical_address)
+string Memory_Manager::padding(string hex_address)
 {
-	int offset_bits = log2(page_size) + 10;
+	int length = hex_address.length();
+	int hex_address_length = (address_size/4); //need to get ceil but keeping it like this for now.
+	for(int i=0;i<(hex_address_length-length);i++)
+	{
+		hex_address = "0" + hex_address;
+	}
+	hex_address = "0x" + hex_address;
+	return hex_address;
+	/*int offset_bits = log2(page_size) + 10;
 	int length = bin_logical_address.length();
 	string offset = bin_logical_address.substr(length-offset_bits,offset_bits);
 	string bin_page_number = bin_physical_address.substr(0,length-offset_bits);
@@ -255,6 +266,36 @@ string Memory_Manager::padding(string bin_physical_address, string bin_logical_a
 	}
 	hexa_physical_address = "0x"+hexa_physical_address;
 	return hexa_physical_address;
+	*/
+	
+}
+
+string Memory_Manager::get_next_virtual_address(string virtual_address)
+{
+	//virtual_address is hexadecimal.
+        long int dec_virtual_address = hex_to_dec(virtual_address);
+        //cout<<"dec virtual address = "<<dec_virtual_address<<endl;
+	//string bin_virtual_address = dec_to_bin(dec_virtual_address);
+	
+	dec_virtual_address += page_size*1024;
+	//cout<<"new dec virtual address = "<<dec_virtual_address<<endl;
+	string new_virtual_address = dec_to_hex(dec_virtual_address);
+	//cout<<"new virtual address = "<<new_virtual_address<<endl;
+	new_virtual_address = padding(new_virtual_address);
+	//cout<<"padded new virtual address = "<<new_virtual_address<<endl;
+	//cout<<endl;
+	return new_virtual_address;
+}
+
+string Memory_Manager::get_physical_address()
+{
+	long int dec_physical_address = physical_page_number*page_size*1024;
+	//cout<<"decimal physical address = "<<dec_physical_address<<endl;
+	string hex_physical_address = dec_to_hex(dec_physical_address);
+	//cout<<"hex physical address = "<<hex_physical_address<<endl;
+	string physical_address = padding(hex_physical_address);
+	increment_physical_page_number();
+	return physical_address;
 }
 
 vector<vector<string>> Memory_Manager::assign_memory(string virtual_page_address, int size)
@@ -279,21 +320,11 @@ vector<vector<string>> Memory_Manager::assign_memory(string virtual_page_address
 	
 	for(int i=0;i<num_pages;i++)
 	{
-		int physical_page_address;
-		string bin_physical_address;
-		int d_logical_address;
-		
-		//adding physical
-		physical_page_address = physical_page_number*page_size*1024;
-		bin_physical_address = dec_to_bin(physical_page_address);
-		increment_physical_page_number();
-		
-		d_logical_address = hex_to_dec(virtual_page_address);
-		string bin_logical_address = dec_to_bin(d_logical_address);
-		string physical_address = padding(bin_physical_address, bin_logical_address);
 		logical_addresses.push_back(virtual_page_address);
+		string physical_address = get_physical_address();
+		
 		physical_addresses.push_back(physical_address);
-		virtual_page_address = increment_virtual_page_address(virtual_page_address);
+		virtual_page_address = get_next_virtual_address(virtual_page_address);
 	}
 	vector<vector<string>> address;
 	address.push_back(logical_addresses);
@@ -318,6 +349,7 @@ int main()
 	{
 		cout<<"Logical Address of "<<j+1<<" is = "<<vp_address[0][j]<<endl;
 		cout<<"Physical Address of "<<j+1<<" is = "<<vp_address[1][j]<<endl;
+		cout<<endl;
 	}
 	
 	allocator.print_allocator_status();
