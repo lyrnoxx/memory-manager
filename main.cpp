@@ -4,7 +4,7 @@
 #include<unordered_map>
 #include<vector>
 #include "memory_manager_module.cpp"
-#include "performance_module.cpp"
+//#include "performance_module.cpp"
 using namespace std;
 
 static int count;
@@ -25,7 +25,8 @@ static int count;
             combined.push_back(pages);
             return combined;
         }
-};*/
+};
+*/
 
 class Task{
     string task_number, physical_address, logical_multi;
@@ -40,6 +41,7 @@ class Task{
         }
         Task(string n): task_number(n){
             single_level_page_table.resize(4*1024*1024);
+            multi_level_page_table.resize(4*1024);
         }
 
         void map_add(string logical_address, int size){
@@ -86,25 +88,36 @@ class Task{
         }
 
         void multi_level_add(string logical_address, int size){
-            int level_one_index = stoi(logical_address.substr(0, 2), nullptr, 16);
-            int level_two_index = stoi(logical_address.substr(2), nullptr, 16);
+            if (logical_address.substr(0, 2) == "0x") {
+            logical_address = logical_address.substr(2);
+            }
+            size_t level_one_index = stoi(logical_address.substr(0, 2), nullptr, 16);
+            size_t level_two_index = stoi(logical_address.substr(2), nullptr, 16);
             if(!multi_level_page_table[level_one_index][level_two_index].empty()){
                 cout<<endl<<"PAGE HIT!!"<<endl;
             }
             else{
                 vector<vector<string>> combined_addresses = mem_man.assign_memory(logical_address, size);
                 for (size_t i=0; i<combined_addresses[0].size();i++){
-                    logical_multi = combined_addresses[0][i];
                     physical_address = combined_addresses[1][i];
-                    map_page_table[logical_multi] = physical_address;
+                    multi_level_page_table[level_one_index][level_two_index]=physical_address;
+                    cout<<endl<<level_one_index<<" "<<level_two_index;
+                    cout<<endl<<multi_level_page_table[level_one_index][level_two_index];                    
                 }
             }
+                /*cout << "Current state of the multi-level page table:" << endl;
+                for (size_t i = 0; i < multi_level_page_table.size(); i++) {
+                cout << "Level " << i + 1 << ":" << endl;
+                for (size_t j = 0; j < multi_level_page_table[i].size(); j++) {
+                cout << "    Entry " << j + 1 << ": " << multi_level_page_table[i][j] << endl;
+                }
+                }*/
         }
 
 };
 
 class IO{
-    Performance performance;
+    //Performance performance;
     unordered_map<string, Task> tasks;
     public:
 
@@ -138,9 +151,10 @@ class IO{
         if(tasks.find(task_number)==tasks.end()){
         tasks[task_number] = Task(task_number);
         }
-        tasks[task_number].map_add(logical_address,stoi(size_number));
+        //tasks[task_number].map_add(logical_address,stoi(size_number));
         //tasks[task_number].single_level_add(logical_address, stoi(size_number));
-        performance.map_check_physical_memory_allocated(tasks[task_number],logical_address,stoi(size_number));
+        tasks[task_number].multi_level_add(logical_address, stoi(size_number));
+        //performance.map_check_physical_memory_allocated(tasks[task_number],logical_address,stoi(size_number));
     }
 
 };
