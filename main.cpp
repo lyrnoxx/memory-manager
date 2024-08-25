@@ -3,9 +3,13 @@
 #include<map>
 #include<unordered_map>
 #include<vector>
+#include "memory_manager_module.cpp"
+#include "performance_module.cpp"
 using namespace std;
 
-class Memory_Manager{
+static int count;
+
+/*class Memory_Manager{
     public:
         vector<vector<string>> assign_memory(string a, int b){
             vector<string> frames;
@@ -21,7 +25,7 @@ class Memory_Manager{
             combined.push_back(pages);
             return combined;
         }
-};
+};*/
 
 class Task{
     string task_number, physical_address, logical_multi;
@@ -37,9 +41,11 @@ class Task{
         Task(string n): task_number(n){
             single_level_page_table.resize(4*1024*1024);
         }
+
         void map_add(string logical_address, int size){
             if(map_page_table.find(logical_address)!=map_page_table.end()){
                 cout<<endl<<"PAGE HIT!!"<<endl;
+                count+=1;
             }
             else{
                 vector<vector<string>> combined_addresses = mem_man.assign_memory(logical_address, size);
@@ -48,15 +54,16 @@ class Task{
                     physical_address = combined_addresses[1][i];
                     map_page_table[logical_multi] = physical_address;
                 }
+
             }
-           /* for (const auto& entry : map_page_table) {
+            /*for (const auto& entry : map_page_table) {
         cout << "Logical Address: " << entry.first << " -> Physical Frames: ";
         for (const auto& frame : entry.second) {
             cout << frame << " ";
         }
         cout << endl;
     }*/
-        }
+    }
 
         void single_level_add(string logical_address, int size){
             size_t index=stoi(logical_address,nullptr,16) / (page_size*1024);
@@ -97,10 +104,12 @@ class Task{
 };
 
 class IO{
+    Performance performance;
     unordered_map<string, Task> tasks;
     public:
+
     void get_trace(){
-        ifstream traces("traces.txt");
+        ifstream traces("tracefile_2KB_4GB_8GB.txt");
         string t;
     
         while (getline(traces, t)) { 
@@ -130,7 +139,8 @@ class IO{
         tasks[task_number] = Task(task_number);
         }
         tasks[task_number].map_add(logical_address,stoi(size_number));
-        tasks[task_number].single_level_add(logical_address, stoi(size_number));
+        //tasks[task_number].single_level_add(logical_address, stoi(size_number));
+        performance.map_check_physical_memory_allocated(tasks[task_number],logical_address,stoi(size_number));
     }
 
 };
@@ -139,6 +149,6 @@ class IO{
 int main() {
     IO ioManager;
     ioManager.get_trace();
-
+    cout<<endl<<count;
     return 0;
 }
