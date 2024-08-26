@@ -3,11 +3,23 @@
 #include<map>
 #include<unordered_map>
 #include<vector>
+#include<sstream>
 #include "memory_manager_module.cpp"
-//#include "performance_module.cpp"
+#include "performance_module.cpp"
+//#include "config.h"
+//#include "task.cpp"
+
 using namespace std;
 
 static int count;
+extern int map_memory_hits;
+extern int map_memory_misses;
+
+extern int single_PT_memory_hits;
+extern int single_PT_memory_misses;
+
+extern int double_PT_memory_hits;
+extern int double_PT_memory_misses;
 
 /*class Memory_Manager{
     public:
@@ -25,104 +37,17 @@ static int count;
             combined.push_back(pages);
             return combined;
         }
-};
-*/
+};*/
 
-class Task{
-    string task_number, physical_address, logical_multi;
-    unordered_map<string, string> map_page_table;
-    vector<string> single_level_page_table;
-    vector<vector<string>> multi_level_page_table;
-    Memory_Manager mem_man;
-    int page_size = 4;
 
-    public:
-        Task() : task_number("") {
-        }
-        Task(string n): task_number(n){
-            single_level_page_table.resize(4*1024*1024);
-            multi_level_page_table.resize(4*1024);
-        }
-
-        void map_add(string logical_address, int size){
-            if(map_page_table.find(logical_address)!=map_page_table.end()){
-                cout<<endl<<"PAGE HIT!!"<<endl;
-                count+=1;
-            }
-            else{
-                vector<vector<string>> combined_addresses = mem_man.assign_memory(logical_address, size);
-                for (size_t i=0; i<combined_addresses[0].size();i++){
-                    logical_multi = combined_addresses[0][i];
-                    physical_address = combined_addresses[1][i];
-                    map_page_table[logical_multi] = physical_address;
-                }
-
-            }
-            /*for (const auto& entry : map_page_table) {
-        cout << "Logical Address: " << entry.first << " -> Physical Frames: ";
-        for (const auto& frame : entry.second) {
-            cout << frame << " ";
-        }
-        cout << endl;
-    }*/
-    }
-
-        void single_level_add(string logical_address, int size){
-            size_t index=stoi(logical_address,nullptr,16) / (page_size*1024);
-            if(!single_level_page_table[index].empty()){
-                cout<<endl<<"PAGE HIT!!"<<endl;
-            }
-            else{
-                vector<vector<string>> combined_addresses = mem_man.assign_memory(logical_address, size);
-                for (size_t i=0; i<combined_addresses[0].size();i++){
-                    int logical_pages = stoi(combined_addresses[0][i], nullptr, 16) / (page_size*1024);
-                    physical_address = combined_addresses[1][i];
-                    single_level_page_table[logical_pages] = physical_address;
-                }
-            }
-           /* for (size_t i = 0; i < single_level_page_table.size(); i++) {
-        if (!single_level_page_table[i].empty()) {
-            cout << "Logical Page Number: " << i << " -> Physical Frame: " << single_level_page_table[i] << endl;
-        }
-    }*/
-        }
-
-        void multi_level_add(string logical_address, int size){
-            if (logical_address.substr(0, 2) == "0x") {
-            logical_address = logical_address.substr(2);
-            }
-            size_t level_one_index = stoi(logical_address.substr(0, 2), nullptr, 16);
-            size_t level_two_index = stoi(logical_address.substr(2), nullptr, 16);
-            if(!multi_level_page_table[level_one_index][level_two_index].empty()){
-                cout<<endl<<"PAGE HIT!!"<<endl;
-            }
-            else{
-                vector<vector<string>> combined_addresses = mem_man.assign_memory(logical_address, size);
-                for (size_t i=0; i<combined_addresses[0].size();i++){
-                    physical_address = combined_addresses[1][i];
-                    multi_level_page_table[level_one_index][level_two_index]=physical_address;
-                    cout<<endl<<level_one_index<<" "<<level_two_index;
-                    cout<<endl<<multi_level_page_table[level_one_index][level_two_index];                    
-                }
-            }
-                /*cout << "Current state of the multi-level page table:" << endl;
-                for (size_t i = 0; i < multi_level_page_table.size(); i++) {
-                cout << "Level " << i + 1 << ":" << endl;
-                for (size_t j = 0; j < multi_level_page_table[i].size(); j++) {
-                cout << "    Entry " << j + 1 << ": " << multi_level_page_table[i][j] << endl;
-                }
-                }*/
-        }
-
-};
 
 class IO{
-    //Performance performance;
+    Performance performance;
     unordered_map<string, Task> tasks;
     public:
 
     void get_trace(){
-        ifstream traces("tracefile_2KB_4GB_8GB.txt");
+        ifstream traces("tracefile_4KB_4GB_4GB.txt");
         string t;
     
         while (getline(traces, t)) { 
@@ -132,6 +57,7 @@ class IO{
     }
 
     void process_trace(string t){
+    	cout<<"Trace - "<<t<<endl;
         string task_number, logical_address, size, size_number;        
         int first_col = t.find(":");
         int second_col = t.find(":",first_col+1);
@@ -139,30 +65,83 @@ class IO{
         task_number =  t.substr(0,first_col);
         logical_address = t.substr(first_col+1,second_col-first_col-1);
         size = t.substr(second_col+1);
-
-        for (char ch : size) {
+        //cout<<"Size = "<<size<<endl;
+        //cout<<"Type of size = "<<typeid(size).name()<<endl;
+        size_number = size.substr(0,2);
+        stringstream ss;
+        ss<<size_number;
+        int allocation_size;
+        ss>>allocation_size;
+        /*for (char ch : size) {
         if (std::isdigit(ch)) {
             size_number += ch;
         } else {
             break;  
         }
-    }
+        //cout<<"Number of characters in size string = "<<count_character<<endl;
+    }*/
 
         if(tasks.find(task_number)==tasks.end()){
+        cout<<"added to tasks"<<endl;
         tasks[task_number] = Task(task_number);
         }
+        //cout<<"size = "<<allocation_size+1<<endl;
+        performance.map_check_physical_memory_allocated(tasks[task_number],logical_address,allocation_size);
+        performance.singlePT_check_physical_memory_allocated(tasks[task_number],logical_address,allocation_size);
         //tasks[task_number].map_add(logical_address,stoi(size_number));
         //tasks[task_number].single_level_add(logical_address, stoi(size_number));
-        tasks[task_number].multi_level_add(logical_address, stoi(size_number));
-        //performance.map_check_physical_memory_allocated(tasks[task_number],logical_address,stoi(size_number));
     }
-
+	
+	void display_task_details_map()
+	{
+		int t_size = tasks.size();
+        	for (auto& it: tasks)
+        	{
+			cout << "Hits and Misses for "<<it.first<<endl;
+			cout << "Hits = " << it.second.map_hit<<endl;
+			cout << "Miss = " << it.second.map_miss<<endl;
+		}
+		cout<<"Total Hits - "<<map_memory_hits<<endl;
+    		cout<<"Total Misses - "<<map_memory_misses<<endl;
+	}
+	
+	void display_task_details_spt()
+	{
+		int t_size = tasks.size();
+        	for (auto& it: tasks)
+        	{
+			cout << "Hits and Misses for "<<it.first<<endl;
+			cout << "Hits = " << it.second.spt_hit<<endl;
+			cout << "Miss = " << it.second.spt_miss<<endl;
+		}
+		cout<<"Total Hits - "<<single_PT_memory_hits<<endl;
+    		cout<<"Total Misses - "<<single_PT_memory_misses<<endl;
+    
+	}
+	
+	void display_task_details_dpt()
+	{
+		int t_size = tasks.size();
+        	for (auto& it: tasks)
+        	{
+			cout << "Hits and Misses for "<<it.first<<endl;
+			cout << "Hits = " << it.second.dpt_hit<<endl;
+			cout << "Miss = " << it.second.dpt_miss<<endl;
+		}
+		cout<<"Total Hits - "<<double_PT_memory_hits<<endl;
+    		cout<<"Total Misses - "<<double_PT_memory_misses<<endl;
+	}
 };
 
 
 int main() {
     IO ioManager;
     ioManager.get_trace();
-    cout<<endl<<count;
+    cout<<endl<<"Map Implementation"<<endl;
+    ioManager.display_task_details_map();
+    cout<<endl<<"Single Level Page Table Implementation"<<endl;
+    ioManager.display_task_details_spt();
+    
+    //cout<<endl<<count;
     return 0;
 }

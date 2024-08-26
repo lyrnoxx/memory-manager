@@ -1,6 +1,10 @@
 #include <iostream>
 #include <string>
 #include <map>
+#include "config.h"
+//#include "task.cpp"
+
+using namespace std;
 
 extern int page_size;
 extern int logical_memory_size;
@@ -15,6 +19,94 @@ static int single_PT_memory_hits = 0;
 static int single_PT_memory_misses = 0;
 
 
+class Task{
+    string task_number, physical_address, logical_multi;
+    unordered_map<string, string> map_page_table;
+    vector<string> single_level_page_table;
+    vector<vector<string>> multi_level_page_table;
+    Memory_Manager mem_man;
+    int page_size = 4;
+
+    public:
+    	int map_hit = 0;
+    	int map_miss = 0;
+    	int spt_hit = 0;
+    	int spt_miss = 0;
+    	int dpt_hit = 0;
+    	int dpt_miss = 0;
+
+        Task() : task_number("") {
+        }
+        Task(string n): task_number(n){
+            single_level_page_table.resize(4*1024*1024);
+        }
+        
+	friend class Performance;
+	//friend class IO;
+	
+        void map_add(string logical_address, int size){
+            if(map_page_table.find(logical_address)!=map_page_table.end()){
+                //cout<<endl<<"PAGE HIT!!"<<endl;
+                map_hit+=1;
+            }
+            else{
+            	map_miss+=1;
+                vector<vector<string>> combined_addresses = mem_man.assign_memory(logical_address, size);
+                for (size_t i=0; i<combined_addresses[0].size();i++){
+                    logical_multi = combined_addresses[0][i];
+                    physical_address = combined_addresses[1][i];
+                    map_page_table[logical_multi] = physical_address;
+                }
+
+            }
+            /*for (const auto& entry : map_page_table) {
+        cout << "Logical Address: " << entry.first << " -> Physical Frames: ";
+        for (const auto& frame : entry.second) {
+            cout << frame << " ";
+        }
+        cout << endl;
+    }*/
+    }
+
+        /*void single_level_add(string logical_address, int size){
+            size_t index=stoi(logical_address,nullptr,16) / (page_size*1024);
+            if(!single_level_page_table[index].empty()){
+                cout<<endl<<"PAGE HIT!!"<<endl;
+            }
+            else{
+                vector<vector<string>> combined_addresses = mem_man.assign_memory(logical_address, size);
+                for (size_t i=0; i<combined_addresses[0].size();i++){
+                    int logical_pages = stoi(combined_addresses[0][i], nullptr, 16) / (page_size*1024);
+                    physical_address = combined_addresses[1][i];
+                    single_level_page_table[logical_pages] = physical_address;
+                }
+            }
+           /* for (size_t i = 0; i < single_level_page_table.size(); i++) {
+        if (!single_level_page_table[i].empty()) {
+            cout << "Logical Page Number: " << i << " -> Physical Frame: " << single_level_page_table[i] << endl;
+        }
+    }
+        }*/
+
+        /*void multi_level_add(string logical_address, int size){
+            int level_one_index = stoi(logical_address.substr(0, 2), nullptr, 16);
+            int level_two_index = stoi(logical_address.substr(2), nullptr, 16);
+            if(!multi_level_page_table[level_one_index][level_two_index].empty()){
+                cout<<endl<<"PAGE HIT!!"<<endl;
+            }
+            else{
+                vector<vector<string>> combined_addresses = mem_man.assign_memory(logical_address, size);
+                for (size_t i=0; i<combined_addresses[0].size();i++){
+                    logical_multi = combined_addresses[0][i];
+                    physical_address = combined_addresses[1][i];
+                    map_page_table[logical_multi] = physical_address;
+                }
+            }
+        }*/
+
+};
+
+
 class Performance : public Memory_Manager
 {
 	public:
@@ -22,10 +114,12 @@ class Performance : public Memory_Manager
 	
 	int calculate_page_table_size();
 	long int hex_to_dec(string logical_address);
-	string get_next_virtual_address();
-	void map_check_physical_memory_allocated(Task* task, string logical_address, int size);
-	void singlePT_check_physical_memory_allocated(Task* task, string logical_address, int size);
-}
+	string get_next_virtual_address(string logical_address);
+	vector<vector<string>> assign_memory(string virtual_page_address, int size);
+	void map_check_physical_memory_allocated(Task& task, string logical_address, int size);
+	void singlePT_check_physical_memory_allocated(Task& task, string logical_address, int size);
+};
+
 int Performance::calculate_page_table_size()
 {
 	int num_pages = 0;
@@ -49,23 +143,23 @@ long int Performance::hex_to_dec(string logical_address)
 
 string Performance::get_next_virtual_address(string virtual_address)
 {
-	//virtual_address is hexadecimal.
-        /*long int dec_virtual_address = hex_to_dec(virtual_address);
-	dec_virtual_address += page_size*1024;
-	string new_virtual_address = dec_to_hex(dec_virtual_address);
-	new_virtual_address = padding(new_virtual_address);
-	return new_virtual_address;*/
 	Memory_Manager m;
 	string new_virtual_address = m.get_next_virtual_address(virtual_address);
 	return new_virtual_address;
 }
 
-//Task* task should send a pointer to a list of tasks, to access the data.
-void Performance::map_check_physical_memory_allocated(Task* task, string task_name, string logical_address, int size)
+vector<vector<string>> Performance::assign_memory(string virtual_page_address, int size)
 {
-	int pages, allocation_needed;
-	string start_allocation = "";
-	allocation_needed = 0;
+	Memory_Manager m;
+	vector<vector<string>> address = m.assign_memory(virtual_page_address, size);
+	return address;
+}
+
+
+void Performance::map_check_physical_memory_allocated(Task& task, string logical_address, int size)
+{
+
+	int pages;
 	if(size%page_size == 0)
 	{
 		pages = (size/page_size);
@@ -79,51 +173,57 @@ void Performance::map_check_physical_memory_allocated(Task* task, string task_na
 	{
 		if(task.map_page_table.find(logical_address) != task.map_page_table.end())
 		{
-			memory_hits += 1;
-			logical_address = get_next_virtual_address(logical_address);
+			map_memory_hits += 1;
+			task.map_hit += 1;
 		}
 		else
 		{
-			memory_misses += 1;
-			allocation_needed += 1;
-			if(start_allocation == "")
-			{
-				start_allocation = logical_address;
-			}
+			map_memory_misses += 1;
+			task.map_miss += 1;
+			vector<vector<string>> addresses = assign_memory(logical_address, page_size);
+			task.map_page_table[addresses[0][0]] = addresses[1][0];
 		}
-	}
-	
-	if(start_allocation != "")
-	{
-		assign_memory(start_allocation, allocation_needed);//inherited function should be written in the class above.
+		logical_address = get_next_virtual_address(logical_address);
 	}
 }
 
-void singlePT_check_physical_memory_allocated(Task* task,string task_name string logical_address, int size)
+void Performance::singlePT_check_physical_memory_allocated(Task& task, string logical_address, int size)
 {
 	long int dec_logical_address = hex_to_dec(logical_address);
 	long int page_number = dec_logical_address/(page_size*1024);
-	task
+	
+	int pages;
+	if(size%page_size == 0)
+	{
+		pages = (size/page_size);
+	}
+	else
+	{
+		pages = (size/page_size)+1;
+	}
+	
+	for(int i=0;i<pages;i++)
+	{
+		if(task.single_level_page_table[page_number]!="")
+		{
+			single_PT_memory_hits += 1;
+			task.spt_hit += 1;
+		}
+		else
+		{
+			single_PT_memory_misses += 1;
+			task.spt_miss += 1;
+			vector<vector<string>> addresses = assign_memory(logical_address, page_size);
+			task.single_level_page_table[page_number] = addresses[1][0];
+		}
+		logical_address = get_next_virtual_address(logical_address);
+	}
+	
+	//cout<<"The value at the 0th index in single level page table is = "<<typeid(task.single_level_page_table[0]).name()<<endl;
+	//basically do sth similar to how the map implementation is done.
 }
-//call the update_free_memory() function of the Memory_Manager module.
-//call the get_free_memory() function of the Memory_Manager Module 
-//to get free memory left.
 
-int main()
+void Performance::doublePT_check_physical_memory_allocated(Task& task, string logical_address, int size)
 {
-	//either use inheritance or we can create an instance of Memory_Manager when 
-	//needed and use it to do the required operations.
-	Performance p1;
-	//I/O module can create a performance object and then send entire task list to 
-	//map_check_physical_memory_allocated() with other required arguments.
-	//One issue is that we will have to pass all 10 task objects,
-	//containing big amounts of data everytime a new task instance comes in.
-	//Can use pointer to pass the array containing the task objects.
 	
-	//OR we can use inheritance and make I/O module the child of Performance and be 
-	//able to access the functions of Performance without really making an object.
-	
-	//Finally to measure execution time, we will enclose the function call within 
-	//time value.
-	return 0;
 }
