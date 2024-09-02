@@ -4,6 +4,7 @@
 #include <random>
 #include <sstream>
 #include <vector>
+#include <iomanip>
 #include "config.h"
 #include <pthread.h>
 using namespace std;
@@ -21,9 +22,9 @@ class Test{
             size_t logical_address = generate_random_address(section.second);
             size_t size = size_dist(gen);
             stringstream ss;
-            ss<<"T"<<task_id<<":0x"<<uppercase<<hex<<logical_address<<":"<<dec<<size<<"KB"<<endl;
+            ss<<"T"<<task_id<<":0x"<<setw(8)<<setfill('0')<<uppercase<<hex<<logical_address<<":"<<dec<<size<<"KB"<<endl;
             pthread_mutex_lock(&mutex);
-            file<<ss.str()<<endl;
+            file<<ss.str();
             pthread_mutex_unlock(&mutex);
         }
 	}
@@ -100,6 +101,6 @@ class Test{
 
 int main(){
 
-	Test test(4, 10, "traces.txt");
+	Test test(2, 10, "traces.txt");
 	test.generate_file();
 }
